@@ -10,8 +10,19 @@ library(mvtnorm)
 library(MASS)
 
 ## read data
+roads <- c("rural_A", "urban_A", "rural_B", "urban_B")
+modes <- c('car/taxi','light goods','heavy goods','motorcycle','bus','cyclist')
+
 raw_distance <- read.xlsx('~/overflow_dropbox/ITHIM/InjuryModel/five_road_data.xlsx',sheetIndex=1)
+distance_sum <- #lapply(1:2,function(y)
+  sapply(unique(raw_distance$Road.Type),function(x) colSums(subset(raw_distance,Road.Type==x)[,3:9]))/1e6
+rownames(distance_sum) <- c('car/taxi','light goods','heavy goods','motorcycle','bus','total','cyclist')
+colnames(distance_sum) <- c('M',"rural_A", "urban_A", "rural_B", "urban_B")
+distance_sum <- distance_sum[-6,-1]
+
 distance_sum_gen <- readRDS('~/overflow_dropbox/ITHIM/InjuryModel/total_distance_RA.Rds')
+distance_sum_gen <- distance_sum_gen[[road=roads,mode=modes,passenger=1]]*1e-9
+
 ssg.file <- '~/overflow_dropbox/ITHIM/InjuryModel/stats19_05-15_with_NA.Rds'
 test_data_str_raw <- readRDS(ssg.file)
 
@@ -55,19 +66,6 @@ test_data_str$roadtype[test_data_str$roadtype=='A'&test_data_str$urban_or_rural_
 test_data_str$roadtype[test_data_str$roadtype=='B, C, Unclassified'&test_data_str$urban_or_rural_area==2] <- 'rural_B'
 test_data_str$roadtype[test_data_str$roadtype=='B, C, Unclassified'&test_data_str$urban_or_rural_area==1] <- 'urban_B'
 
-roads <- c("rural_A", "urban_A", "rural_B", "urban_B")
-modes <- c('car/taxi','light goods','heavy goods','motorcycle','bus','cyclist')
-
-#year_groups <- list(2005:2009,2010:2015)
-distance_sum <- #lapply(1:2,function(y)
-  sapply(unique(raw_distance$Road.Type),function(x) colSums(subset(raw_distance,Road.Type==x)[,3:9]))/1e6
-rownames(distance_sum) <- c('car/taxi','light goods','heavy goods','motorcycle','bus','total','cyclist')
-colnames(distance_sum) <- c('M',"rural_A", "urban_A", "rural_B", "urban_B")
-distance_sum <- distance_sum[-6,-1]
-
-
-distance_sum_gen <- distance_sum_gen[[road=roads,mode=modes,passenger=1]]*1e-9
-
 get_numbers <- function(cas_sev='Fatal',str_gen=0:1,c_mode='pedestrian'){
   sapply(roads,function(x)
     sapply(rownames(distance_sum),function(y)
@@ -76,12 +74,12 @@ get_numbers <- function(cas_sev='Fatal',str_gen=0:1,c_mode='pedestrian'){
 
 for(sev in c('Fatal','Serious')){
   ## raw numbers
-  numbers <- get_numbers(c_mode=unique(test_data_str$cas_mode),cas_sev = sev)
+  numbers <- get_numbers(c_mode=unique(test_data_str$cas_mode),cas_sev = sev,str_gen = unique(test_data_str$strike_male))
   
   print(numbers/distance_sum)
   
   ## pedestrian casualties
-  ped_numbers <- get_numbers(cas_sev = sev)
+  ped_numbers <- get_numbers(cas_sev = sev,str_gen = unique(test_data_str$strike_male))
   
   print(ped_numbers/distance_sum)
   
@@ -240,63 +238,69 @@ coef_param[coef_param[,2]>1,]
 distances <- mod1$model$`(offset)`
 ## use std error as std dv
 samples <- 1000
-table3 <- list()
-for(j in modes){
-  table3[[j]] <- matrix(0,ncol=5,nrow=samples)
-  colnames(table3[[j]]) <- c(roads,'all')
-}
-for(i in 1:samples){
-  parameters <- t(rmvnorm(1,coef_param[,1],vcov(mod1)))
-  test_data_str$pred <- exp(mod_mat %*% parameters + distances)
-  sub_data <- test_data_str[test_data_str$cas_severity=='Fatal',]
-  for(j in modes) table3[[j]][i,1:4] <- sapply(roads,function(x)sum(sub_data[sub_data$roadtype==x&sub_data$strike_mode==j,]$pred)/
-                                                 distance_sum_sum[j,x])
-  for(j in modes) table3[[j]][i,5] <- sum(sub_data[sub_data$strike_mode==j,]$pred)/sum(distance_sum_sum[j,])
-}
-
-saved_file <- read.csv(paste0('outputs/','Fatal_summaries.csv'))
-dist_raw <- saved_file[1:6,2:6]
-table4 <- lapply(1:length(table3),function(x)(table3[[x]][,5]*dist_raw[x,5]))
-mn_raw <- sapply(table4,mean)
-std_raw <- sapply(table4,sd)
-cov_raw <- std_raw/mn_raw^2
-print(std_raw^2/mn_raw)
-
-mn <- t(sapply(table3,function(x)apply(x,2,mean)))
-mdn <- t(sapply(table3,function(x)apply(x,2,median)))
-std <- t(sapply(table3,function(x)apply(x,2,sd)))
 quant_range <- c(0.05,0.95)
-lower <- t(sapply(table3,function(x)apply(x,2,quantile,quant_range[1])))
-upper <- t(sapply(table3,function(x)apply(x,2,quantile,quant_range[2])))
-print(std[,5]^2/mn[,5])
-
-mdnraw <- mdn
-mdnraw <- (saved_file[7:12,2:6])/(saved_file[1:6,2:6])
-roadnames <- c('Rural major','Urban major','Rural minor','Urban minor')
-modenames <- modes
-modenames[6] <- 'cycle'
-{pdf(paste0('outputs/','rate_ranges.pdf'))
-  #x11(width=8); 
-  par(mfrow=c(2,2),mar=c(7,5,4,1))
-  for(i in 1:length(roads)){
-    #plot(1:length(modes),(mdn[,i]),pch=15,cex=1,col='navyblue',ylim=c(min(lower[,i]),max(upper[,i])),main=roads[i],frame=F,
-    #     cex.axis=1.5,cex.lab=1.5,xlab='',ylab='Deaths per bn km',xaxt='n',log='y')
-    plot(1:length(modes),1:length(modes),col='white',ylim=c(min(lower[,i]),max(upper[,i])),main=roadnames[i],frame=F,
-         cex.axis=1.5,cex.lab=1.5,xlab='',ylab=ifelse(i%in%c(2,4),'','Deaths per bn km'),xaxt='n',las=2)
-    for(j in c(5,10,15,20,25)) abline(h=j,col='grey',lwd=2,lty=2) # 
-    points(1:length(modes),(mdnraw[,i]),pch=15,cex=0.5,col='darkorange')
-    axis(1,labels=modenames,at=1:length(modes),las=2)
-    for(j in 1:length(modes)) lines(c(j-0.1,j+0.1),(c(mdnraw[j,i],mdnraw[j,i])),col='darkorange',lwd=3)
-    for(j in 1:length(modes)) lines(c(j,j),(c(lower[j,i],upper[j,i])),col='navyblue',lwd=3)
+for(sev in c('Fatal','Serious')){
+  table3 <- list()
+  for(j in modes){
+    table3[[j]] <- matrix(0,ncol=5,nrow=samples)
+    colnames(table3[[j]]) <- c(roads,'all')
   }
-  legend(col=c('darkorange','navyblue'),legend=c('Data','Model'),lwd=2,bty='n',x=0.65,y=21)
-  dev.off()
+  for(i in 1:samples){
+    parameters <- t(rmvnorm(1,coef_param[,1],vcov(mod1)))
+    test_data_str$pred <- exp(mod_mat %*% parameters + distances)
+    sub_data <- test_data_str[test_data_str$cas_severity==sev,]
+    for(j in modes) table3[[j]][i,1:4] <- sapply(roads,function(x)sum(sub_data[sub_data$roadtype==x&sub_data$strike_mode==j,]$pred)/
+                                                   distance_sum_sum[j,x])
+    for(j in modes) table3[[j]][i,5] <- sum(sub_data[sub_data$strike_mode==j,]$pred)/sum(distance_sum_sum[j,])
+  }
+  
+  saved_file <- read.csv(paste0('outputs/',sev,'_summaries.csv'))
+  dist_raw <- saved_file[1:6,2:6]
+  table4 <- lapply(1:length(table3),function(x)(table3[[x]][,5]*dist_raw[x,5]))
+  mn_raw <- sapply(table4,mean)
+  std_raw <- sapply(table4,sd)
+  cov_raw <- std_raw/mn_raw^2
+  print(std_raw^2/mn_raw)
+  
+  mn <- t(sapply(table3,function(x)apply(x,2,mean)))
+  mdn <- t(sapply(table3,function(x)apply(x,2,median)))
+  std <- t(sapply(table3,function(x)apply(x,2,sd)))
+  lower <- t(sapply(table3,function(x)apply(x,2,quantile,quant_range[1])))
+  upper <- t(sapply(table3,function(x)apply(x,2,quantile,quant_range[2])))
+  print(std[,5]^2/mn[,5])
+  
+  mdnraw <- mdn
+  mdnraw <- (saved_file[7:12,2:6])/(saved_file[1:6,2:6])
+  roadnames <- c('Rural major','Urban major','Rural minor','Urban minor')
+  modenames <- modes
+  modenames[6] <- 'cycle'
+  hlines <- c(5,10,15,20,25)
+  if(sev=='Serious') hlines <- hlines*8
+  ypos <- 21
+  if(sev=='Serious') ypos <- ypos*6
+  {pdf(paste0('outputs/',sev,'_rate_ranges.pdf'))
+    #x11(width=8); 
+    par(mfrow=c(2,2),mar=c(7,5,4,1))
+    for(i in 1:length(roads)){
+      #plot(1:length(modes),(mdn[,i]),pch=15,cex=1,col='navyblue',ylim=c(min(lower[,i]),max(upper[,i])),main=roads[i],frame=F,
+      #     cex.axis=1.5,cex.lab=1.5,xlab='',ylab='Deaths per bn km',xaxt='n',log='y')
+      plot(1:length(modes),1:length(modes),col='white',ylim=c(min(lower[,i]),max(upper[,i])),main=roadnames[i],frame=F,
+           cex.axis=1.5,cex.lab=1.5,xlab='',ylab=ifelse(i%in%c(2,4),'',paste0(sev,' injuries per bn km')),xaxt='n',las=2)
+      for(j in hlines) abline(h=j,col='grey',lwd=2,lty=2) # 
+      points(1:length(modes),(mdnraw[,i]),pch=15,cex=0.5,col='darkorange')
+      axis(1,labels=modenames,at=1:length(modes),las=2)
+      for(j in 1:length(modes)) lines(c(j-0.1,j+0.1),(c(mdnraw[j,i],mdnraw[j,i])),col='darkorange',lwd=3)
+      for(j in 1:length(modes)) lines(c(j,j),(c(lower[j,i],upper[j,i])),col='navyblue',lwd=3)
+    }
+    legend(col=c('darkorange','navyblue'),legend=c('Data','Model'),lwd=2,bty='n',x=0.65,y=ypos)
+    dev.off()
+  }
+  
+  xlsx::write.xlsx(mn,file=paste0('outputs/',sev,'_rate_ranges.xlsx'),sheetName = 'mean') 
+  xlsx::write.xlsx(mdn,file=paste0('outputs/',sev,'_rate_ranges.xlsx'),sheetName = 'median',append = T) 
+  xlsx::write.xlsx(lower,file=paste0('outputs/',sev,'_rate_ranges.xlsx'),sheetName = paste0('lower ',quant_range[1]*100),append = T) 
+  xlsx::write.xlsx(upper,file=paste0('outputs/',sev,'_rate_ranges.xlsx'),sheetName = paste0('upper ',quant_range[2]*100),append = T) 
 }
-
-xlsx::write.xlsx(mn,file=paste0('outputs/','rate_ranges.xlsx'),sheetName = 'mean') 
-xlsx::write.xlsx(mdn,file='outputs/rate_ranges.xlsx',sheetName = 'median',append = T) 
-xlsx::write.xlsx(lower,file='outputs/rate_ranges.xlsx',sheetName = paste0('lower ',quant_range[1]*100),append = T) 
-xlsx::write.xlsx(upper,file='outputs/rate_ranges.xlsx',sheetName = paste0('upper ',quant_range[2]*100),append = T) 
 
 cas_modes <- unique(test_data_str$cas_mode)
 table3 <- list()
