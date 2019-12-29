@@ -12,6 +12,7 @@ library(MASS)
 ## read data
 roads <- c("rural_A", "urban_A", "rural_B", "urban_B")
 modes <- c('car/taxi','light goods','heavy goods','motorcycle','bus','cyclist')
+severity_levels <- c('Fatal','Serious','Slight')
 
 raw_distance <- read.xlsx('~/overflow_dropbox/ITHIM/InjuryModel/five_road_data.xlsx',sheetIndex=1)
 distance_sum <- #lapply(1:2,function(y)
@@ -72,7 +73,7 @@ get_numbers <- function(cas_sev='Fatal',str_gen=0:1,c_mode='pedestrian'){
       sum(subset(test_data_str,cas_mode%in%c_mode&strike_mode==y&roadtype==x&cas_severity==cas_sev&strike_male%in%str_gen)$count)))
 }
 
-for(sev in c('Fatal','Serious')){
+for(sev in severity_levels){
   ## raw numbers
   numbers <- get_numbers(c_mode=unique(test_data_str$cas_mode),cas_sev = sev,str_gen = unique(test_data_str$strike_male))
   
@@ -239,7 +240,7 @@ distances <- mod1$model$`(offset)`
 ## use std error as std dv
 samples <- 1000
 quant_range <- c(0.05,0.95)
-for(sev in c('Fatal','Serious')){
+for(sev in severity_levels){
   table3 <- list()
   for(j in modes){
     table3[[j]] <- matrix(0,ncol=5,nrow=samples)
@@ -276,8 +277,10 @@ for(sev in c('Fatal','Serious')){
   modenames[6] <- 'cycle'
   hlines <- c(5,10,15,20,25)
   if(sev=='Serious') hlines <- hlines*8
+  if(sev=='Slight') hlines <- hlines*50
   ypos <- 21
   if(sev=='Serious') ypos <- ypos*6
+  if(sev=='Slight') ypos <- ypos*42.5
   {pdf(paste0('outputs/',sev,'_rate_ranges.pdf'))
     #x11(width=8); 
     par(mfrow=c(2,2),mar=c(7,5,4,1))
@@ -428,7 +431,7 @@ coef_param[coef_param[,2]>1,]
 distances <- mod1$model$`(offset)`
 ## use std error as std dv
 samples <- 1000
-for(sev in c('Fatal','Serious')){
+for(sev in severity_levels){
   val_list <- list()
   for(gen_ind in 0:1){
     gen <- c('F','M')[gen_ind+1]
@@ -492,6 +495,7 @@ for(sev in c('Fatal','Serious')){
         }
         hlines <- c(5,10,15,20,25)
         if(sev=='Serious') hlines <- hlines*5
+        if(sev=='Slight') hlines <- hlines*50
         for(j in hlines) abline(h=j,col='grey',lwd=1,lty=2) # 0.1,0.2,0.5,1,2,5,10,20
         points(1:length(modes)-gen_ind/5,(mdnraw[,i]),pch=15,cex=0.5,col=col2[gen_ind+1])
         axis(1,labels=modenames,at=1:length(modes)-0.1,las=2)
@@ -501,6 +505,7 @@ for(sev in c('Fatal','Serious')){
     }
     ypos <- 16.25
     if(sev=='Serious') ypos <- ypos*8
+    if(sev=='Slight') ypos <- ypos*52.5
     legend(col=col1,legend=c('',''),lwd=2,bty='n',x=0.5,y=ypos)
     legend(col=col2,legend=c('F','M'),lwd=2,bty='n',x=1.2,y=ypos,x.intersp=0.5)
     text('Model Data',x=0.55,y=ypos-0.55,pos=4,cex=0.8)
