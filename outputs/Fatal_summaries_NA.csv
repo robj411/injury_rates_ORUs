@@ -1,13 +1,13 @@
 "","rural_A","urban_A","rural_B","urban_B","total"
 "car/taxi",70,116,61,192,439
-"light goods",14,12,5,27,58
-"heavy goods",27,8,3,12,50
+"van",14,12,5,27,58
+"lorry",27,8,3,12,50
 "motorcycle",1,1,0,1,3
 "bus",2,3,0,3,8
 "cyclist",0,1,0,2,3
 "car/taxi",11,64,13,74,162
-"light goods",1,1,0,8,10
-"heavy goods",7,2,1,2,12
+"van",1,1,0,8,10
+"lorry",7,2,1,2,12
 "motorcycle",0,0,0,1,1
 "bus",0,1,0,1,2
 "cyclist",0,1,0,1,2

@@ -11,21 +11,24 @@ library(MASS)
 
 ## read data
 roads <- c("rural_A", "urban_A", "rural_B", "urban_B")
-modes <- c('car/taxi','light goods','heavy goods','motorcycle','bus','cyclist')
+modes <- c('car/taxi','van','lorry','motorcycle','bus','cyclist')
 severity_levels <- c('Fatal','Serious','Slight')
 
 raw_distance <- read.xlsx('~/overflow_dropbox/ITHIM/InjuryModel/five_road_data.xlsx',sheetIndex=1)
 distance_sum <- #lapply(1:2,function(y)
   sapply(unique(raw_distance$Road.Type),function(x) colSums(subset(raw_distance,Road.Type==x)[,3:9]))/1e6
-rownames(distance_sum) <- c('car/taxi','light goods','heavy goods','motorcycle','bus','total','cyclist')
+rownames(distance_sum) <- c('car/taxi','van','lorry','motorcycle','bus','total','cyclist')
 colnames(distance_sum) <- c('M',"rural_A", "urban_A", "rural_B", "urban_B")
 distance_sum <- distance_sum[-6,-1]
 
 distance_sum_gen <- readRDS('~/overflow_dropbox/ITHIM/InjuryModel/total_distance_RA.Rds')
+dimnames(distance_sum_gen)[[2]][c(5,7)] <- c('van','lorry')
 distance_sum_gen <- distance_sum_gen[[road=roads,mode=modes,passenger=1]]*1e-9
 
 ssg.file <- '~/overflow_dropbox/ITHIM/InjuryModel/stats19_05-15_with_NA.Rds'
 test_data_str_raw <- readRDS(ssg.file)
+test_data_str_raw$strike_mode[test_data_str_raw$strike_mode=='heavy goods'] <- 'lorry'
+test_data_str_raw$strike_mode[test_data_str_raw$strike_mode=='light goods'] <- 'van'
 
 ## view some summaries
 bike_ids <- unique(droplevels(subset(test_data_str_raw,strike_mode=='cyclist'&cas_severity=='Fatal',drop=T)$accident_index))
